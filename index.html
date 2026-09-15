@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#111827">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Controle de Produção</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#f3f4f6;color:#111827}
+header{background:#111827;color:#fff;padding:15px;position:sticky;top:0;z-index:10}
+header h1{margin:0;font-size:20px}
+.header-fields{display:grid;grid-template-columns:2fr 1fr;gap:8px;margin-top:10px}
+.header-fields label{color:#e5e7eb}
+main{max-width:1000px;margin:auto;padding:10px}
+.card{background:#fff;border-radius:13px;padding:13px;margin-bottom:10px;box-shadow:0 2px 8px #0001}
+h2{font-size:16px;margin:0 0 10px}
+label{display:block;font-size:12px;font-weight:bold;margin:8px 0 4px}
+input,select,button{font:inherit}
+input,select{width:100%;padding:9px;border:1px solid #cbd5e1;border-radius:8px;background:#fff}
+button{border:0;border-radius:8px;padding:10px 12px;background:#111827;color:#fff;font-weight:bold;cursor:pointer}
+.secondary{background:#e5e7eb;color:#111827}
+.danger{background:#b91c1c}
+.actions{display:flex;gap:6px;flex-wrap:wrap}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:7px}
+.stat{background:#f8fafc;border:1px solid #e5e7eb;border-radius:9px;padding:10px}
+.stat small{display:block;color:#64748b;margin-bottom:3px;font-size:11px}
+.stat strong{font-size:18px}
+.notice,.empty,.meta{font-size:12px;color:#64748b}
+.status{border:1px solid #e5e7eb;border-radius:9px;padding:9px;margin-top:8px;font-size:12px}
+.status b{display:block;margin-bottom:3px}
+.calendar{display:grid;grid-template-columns:repeat(10,1fr);gap:5px;margin-top:9px}
+.calday{min-height:68px;padding:6px;text-align:left;background:#fff;color:#111827;border:1px solid #dbe1e8;border-radius:8px;box-shadow:none;margin:0}
+.calday.today{border:2px solid #111827}
+.calday .num{font-weight:bold;font-size:12px}
+.calday .q,.calday .mark{font-size:10px;margin-top:5px}
+.calday .mark{font-weight:bold}
+.day{border:1px solid #e5e7eb;border-radius:9px;padding:9px;margin:7px 0}
+.install{border:1px solid #e5e7eb;border-radius:8px;padding:8px;margin-top:6px}
+.install-actions{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}
+.install-actions button{padding:5px 7px;font-size:10px}
+.msg{display:none;margin-top:8px;padding:8px;border-radius:8px;font-size:12px}
+.ok{background:#dcfce7;color:#166534}.err{background:#fee2e2;color:#991b1b}
+table{width:100%;border-collapse:collapse;font-size:11px}
+th,td{text-align:left;padding:6px;border-bottom:1px solid #e5e7eb}
+.modal{display:none;position:fixed;inset:0;background:#0008;z-index:100;padding:15px}
+.modalbox{background:#fff;max-width:500px;margin:35px auto;border-radius:13px;padding:14px}
+.modalbox h2{margin-bottom:12px}
+@media(max-width:700px){.calendar{grid-template-columns:repeat(5,1fr)}}
+@media(max-width:420px){.calendar{grid-template-columns:repeat(5,1fr)}.header-fields{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Controle de Produção</h1>
+  <div class="header-fields">
+    <div><label for="technician">TÉCNICO</label><input id="technician" placeholder="Nome do técnico"></div>
+    <div><label for="matricula">MATRÍCULA</label><input id="matricula" placeholder="Matrícula"></div>
+  </div>
+</header>
+
+<main>
+<section class="card">
+  <h2>📅 Ciclo atual</h2>
+  <div class="grid">
+    <div class="stat"><small>Período</small><strong id="period">—</strong></div>
+    <div class="stat"><small>Dia do ciclo</small><strong id="cday">—</strong></div>
+    <div class="stat"><small>Dias de trabalho restantes</small><strong id="left">—</strong></div>
+  </div>
+</section>
+
+<section class="card">
+  <h2>🎯 Meta do ciclo</h2>
+  <label for="goal">Valor da meta (R$)</label>
+  <input id="goal" type="number" min="0" step="1" inputmode="decimal" placeholder="Ex.: 1200">
+  <button id="saveGoal">SALVAR META</button>
+  <div id="goalMsg" class="msg"></div>
+</section>
+
+<section class="card">
+  <h2>📊 Dashboard</h2>
+  <div class="grid">
+    <div class="stat"><small>Instalações hoje</small><strong id="todayQty">0</strong></div>
+    <div class="stat"><small>Valor de hoje</small><strong id="todayPay">R$ 0,00</strong></div>
+    <div class="stat"><small>Total do ciclo</small><strong id="totalQty">0</strong></div>
+    <div class="stat"><small>Valor do ciclo</small><strong id="totalPay">R$ 0,00</strong></div>
+  </div>
+  <div class="status"><b id="stTitle">Defina sua meta</b><span id="stText">Informe a meta para acompanhar o ritmo.</span></div>
+</section>
+
+<section class="card">
+  <h2>🗓️ Calendário do ciclo</h2>
+  <div class="notice">Toque em qualquer dia para marcar Falta, Atestado ou Folga. Toque novamente para alterar.</div>
+  <div id="calendar" class="calendar"></div>
+</section>
+
+<section class="card">
+  <h2>➕ Salvar instalação</h2>
+  <label for="sa">SA</label><input id="sa">
+  <label for="address">ENDEREÇO</label><input id="address">
+  <label for="customer">NOME CLIENTE</label><input id="customer">
+  <label for="contact">CONTATO CLIENTE</label><input id="contact">
+  <div class="actions">
+    <button id="saveInstall">SALVAR INSTALAÇÃO</button>
+    <button id="clearForm" class="secondary">LIMPAR</button>
+  </div>
+  <div id="installMsg" class="msg"></div>
+</section>
+
+<section class="card">
+  <h2>📋 Produção e instalações</h2>
+  <div id="production"></div>
+</section>
+
+<section class="card">
+  <h2>🧾 Relatório e backup</h2>
+  <div class="actions">
+    <button id="report">GERAR RELATÓRIO</button>
+    <button id="backup" class="secondary">FAZER BACKUP</button>
+    <button id="restore" class="secondary">RESTAURAR BACKUP</button>
+    <input id="file" type="file" accept=".json,application/json" style="display:none">
+    <button id="clearData" class="danger">APAGAR DADOS</button>
+  </div>
+  <div id="dataMsg" class="msg"></div>
+</section>
+</main>
+
+<div id="modal" class="modal" aria-hidden="true">
+  <div class="modalbox">
+    <h2 id="modalTitle">Situação do dia</h2>
+    <label for="daySelect">Situação</label>
+    <select id="daySelect">
+      <option value="">Dia normal / limpar</option>
+      <option value="Falta">Falta</option>
+      <option value="Atestado">Atestado</option>
+      <option value="Folga">Folga</option>
+    </select>
+    <div class="actions" style="margin-top:10px">
+      <button id="modalSave">SALVAR</button>
+      <button id="modalCancel" class="secondary">CANCELAR</button>
+    </div>
+    <div id="modalMsg" class="msg"></div>
+  </div>
+</div>
+
+<script>
+(()=>{"use strict";
+
+const KEY="controle_producao_v2";
+let data=load(), modalDate=null;
+
+function blank(){return{goal:0,technician:"",matricula:"",installations:[],statuses:{}}}
+function load(){
+  try{
+    const r=localStorage.getItem(KEY);
+    if(r){
+      const x=JSON.parse(r);
+      if(x&&Array.isArray(x.installations)) return Object.assign(blank(),x);
+    }
+  }catch(e){}
+  return blank();
+}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(data))}catch(e){}}
+function pad(n){return String(n).padStart(2,"0")}
+function iso(d){return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())}
+function cyc(d){
+  const y=d.getFullYear(),m=d.getMonth();
+  if(d.getDate()<=10)return{start:new Date(y,m,1),end:new Date(y,m,10)};
+  if(d.getDate()<=20)return{start:new Date(y,m,11),end:new Date(y,m,20)};
+  return{start:new Date(y,m,21),end:new Date(y,m+1,0)};
+}
+function pay(q){q=+q||0;if(q<3)return 0;if(q===3)return 75;if(q===4)return 120;return q*35}
+function money(v){return(+v||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}
+function esc(v){return String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
+function dayRange(start,end){
+  const out=[],d=new Date(start);
+  d.setHours(0,0,0,0);
+  while(d<=end){out.push(new Date(d));d.setDate(d.getDate()+1)}
+  return out;
+}
+function isUnavailable(date){return["Falta","Atestado","Folga"].includes(data.statuses[date]||"")}
+function workdaysBetween(start,end){
+  if(end<start)return 0;
+  return dayRange(start,end).filter(d=>!isUnavailable(iso(d))).length;
+}
+function list(c){const a=iso(c.start),b=iso(c.end);return data.installations.filter(x=>x.date>=a&&x.date<=b)}
+function groups(a){
+  const m={};
+  a.forEach(x=>(m[x.date]??=[]).push(x));
+  return Object.keys(m).sort().map(date=>({date,items:m[date],qty:m[date].length}))
+}
+function message(id,t,ok=true){
+  const e=document.getElementById(id);
+  e.textContent=t;e.className="msg "+(ok?"ok":"err");e.style.display="block";
+  setTimeout(()=>e.style.display="none",3000);
+}
+
+function render(){
+  const n=new Date(),c=cyc(n),a=list(c),today=iso(n);
+  const td=a.filter(x=>x.date===today),gs=groups(a);
+  const earned=gs.reduce((s,g)=>s+pay(g.qty),0);
+  const tomorrow=new Date(n);tomorrow.setHours(0,0,0,0);tomorrow.setDate(tomorrow.getDate()+1);
+  const left=workdaysBetween(tomorrow,c.end);
+
+  document.getElementById("period").textContent=pad(c.start.getDate())+"/"+pad(c.start.getMonth()+1)+" a "+pad(c.end.getDate())+"/"+pad(c.end.getMonth()+1);
+  document.getElementById("cday").textContent=(Math.floor((n-c.start)/86400000)+1)+"º";
+  document.getElementById("left").textContent=left;
+  document.getElementById("goal").value=data.goal||"";
+  document.getElementById("technician").value=data.technician||"";
+  document.getElementById("matricula").value=data.matricula||"";
+  document.getElementById("todayQty").textContent=td.length;
+  document.getElementById("todayPay").textContent=money(pay(td.length));
+  document.getElementById("totalQty").textContent=a.length;
+  document.getElementById("totalPay").textContent=money(earned);
+  status(c,earned,left);
+  calendar(c,a);
+  production(a);
+}
+
+function status(c,earned,left){
+  const goal=+data.goal||0,rem=Math.max(0,goal-earned);
+  const t=document.getElementById("stTitle"),x=document.getElementById("stText");
+  if(!goal){t.textContent="Defina sua meta";x.textContent="Informe a meta para acompanhar o ritmo.";return}
+  if(rem<=0){t.textContent="🎯 Meta alcançada!";x.textContent="Você já atingiu "+money(goal)+".";return}
+  if(left<=0){t.textContent="Ciclo encerrado / sem dias disponíveis";x.textContent="Faltam "+money(rem)+" para a meta.";return}
+  let need=0;while(need<1000&&pay(need)*left<rem)need++;
+  const today=new Date();today.setHours(0,0,0,0);
+  const yesterday=new Date(today);yesterday.setDate(yesterday.getDate()-1);
+  const elapsed=workdaysBetween(c.start,yesterday);
+  const base=goal<=750?3:(goal<=1200?4:0);
+  const expected=base?pay(base)*elapsed:0;
+  if(base&&earned>expected){
+    t.textContent="🚀 Você está adiantado!";
+    x.textContent="Mantendo "+base+" instalações/dia nos "+left+" dias de trabalho restantes, a projeção é "+money(earned+pay(base)*left)+".";
+  }else{
+    t.textContent="📍 Ritmo necessário: "+need+" instalação(ões)/dia";
+    x.textContent="Faltam "+money(rem)+". Nos "+left+" dias de trabalho restantes, "+need+" por dia é o menor ritmo constante que cobre o restante.";
+  }
+}
+
+/* CALENDÁRIO: cada dia é um botão real. Isso evita problemas de toque/click em celular. */
+function calendar(c,a){
+  const map={};
+  a.forEach(x=>map[x.date]=(map[x.date]||0)+1);
+  const today=iso(new Date());
+  let out="",d=new Date(c.start);
+  while(d<=c.end){
+    const k=iso(d),q=map[k]||0,s=data.statuses[k]||"";
+    out+=`<button type="button" class="calday ${k===today?"today":""}" data-date="${k}" aria-label="Dia ${d.getDate()}">
+      <div class="num">${d.getDate()}</div>
+      <div class="q">${q?"📡 "+q+" inst.":"—"}</div>
+      <div class="mark">${esc(s)}</div>
+    </button>`;
+    d.setDate(d.getDate()+1);
+  }
+  document.getElementById("calendar").innerHTML=out;
+}
+
+function openDay(date){
+  modalDate=date;
+  const v=data.statuses[date]||"";
+  document.getElementById("modalTitle").textContent="Situação do dia "+date.split("-").reverse().join("/");
+  document.getElementById("daySelect").value=v;
+  document.getElementById("modal").style.display="block";
+  document.getElementById("modal").setAttribute("aria-hidden","false");
+}
+function closeModal(){
+  modalDate=null;
+  document.getElementById("modal").style.display="none";
+  document.getElementById("modal").setAttribute("aria-hidden","true");
+}
+
+document.getElementById("calendar").addEventListener("click",e=>{
+  const day=e.target.closest(".calday");
+  if(day)openDay(day.dataset.date);
+});
+document.getElementById("modalSave").addEventListener("click",()=>{
+  if(!modalDate)return;
+  const s=document.getElementById("daySelect").value;
+  if(s)data.statuses[modalDate]=s;else delete data.statuses[modalDate];
+  save();closeModal();render();message("dataMsg","Situação salva.");
+});
+document.getElementById("modalCancel").addEventListener("click",closeModal);
+document.getElementById("modal").addEventListener("click",e=>{if(e.target.id==="modal")closeModal()});
+
+function production(a){
+  const el=document.getElementById("production"),gs=groups(a);
+  if(!gs.length){el.innerHTML='<p class="empty">Nenhuma instalação registrada neste ciclo.</p>';return}
+  el.innerHTML=gs.sort((a,b)=>b.date.localeCompare(a.date)).map(g=>
+    `<div class="day"><b>${g.date.split("-").reverse().join("/")} — ${g.qty} instalação(ões) — ${money(pay(g.qty))}</b>`+
+    g.items.map(x=>`<div class="install"><b>${esc(x.sa)} • ${esc(x.customer)}</b>
+      <div class="meta">${esc(x.address)} • ${esc(x.contact)}</div>
+      <div class="install-actions"><button class="edit secondary" data-id="${x.id}">EDITAR</button><button class="del danger" data-id="${x.id}">REMOVER</button></div>
+    </div>`).join("")+
+    `</div>`).join("");
+  el.querySelectorAll(".edit").forEach(b=>b.onclick=()=>editInstall(b.dataset.id));
+  el.querySelectorAll(".del").forEach(b=>b.onclick=()=>removeInstall(b.dataset.id));
+}
+function editInstall(id){
+  const x=data.installations.find(z=>z.id===id);if(!x)return;
+  const title="Editar instalação";
+  const body=`<label>SA</label><input id="esa" value="${esc(x.sa)}">
+  <label>ENDEREÇO</label><input id="ead" value="${esc(x.address)}">
+  <label>NOME CLIENTE</label><input id="ecu" value="${esc(x.customer)}">
+  <label>CONTATO CLIENTE</label><input id="eco" value="${esc(x.contact)}">`;
+  openGenericModal(title,body,()=>{
+    const v=["esa","ead","ecu","eco"].map(i=>document.getElementById(i).value.trim());
+    if(v.some(z=>!z)){document.getElementById("modalMsg").textContent="Preencha todos os campos.";return}
+    Object.assign(x,{sa:v[0],address:v[1],customer:v[2],contact:v[3]});save();closeModal();render();message("installMsg","Instalação editada com sucesso.");
+  });
+}
+function openGenericModal(title,body,fn){
+  document.getElementById("modalTitle").textContent=title;
+  document.getElementById("modalBody")?.remove();
+  const box=document.querySelector(".modalbox");
+  const old=box.querySelector(".dynamic-body");if(old)old.remove();
+  const div=document.createElement("div");div.className="dynamic-body";div.innerHTML=body;
+  box.insertBefore(div,box.querySelector(".actions"));
+  document.getElementById("daySelect").style.display="none";
+  document.getElementById("modalSave").onclick=fn;
+  document.getElementById("modalCancel").onclick=()=>{document.getElementById("daySelect").style.display="block";closeModal()};
+  document.getElementById("modal").style.display="block";
+}
+document.getElementById("modal").querySelector(".modalbox").insertBefore(
+  Object.assign(document.createElement("div"),{id:"modalBody"}),document.querySelector("#modal .actions")
+);
+function resetDayModalUI(){
+  document.getElementById("daySelect").style.display="block";
+  document.getElementById("modalBody").innerHTML="";
+}
+const originalOpenDay=openDay;
+openDay=function(date){resetDayModalUI();originalOpenDay(date);document.getElementById("modalSave").onclick=()=>{
+  const s=document.getElementById("daySelect").value;
+  if(s)data.statuses[date]=s;else delete data.statuses[date];
+  save();closeModal();render();message("dataMsg","Situação salva.");
+}};
+
+function removeInstall(id){
+  if(!confirm("Remover esta instalação? O valor do dia será recalculado."))return;
+  data.installations=data.installations.filter(x=>x.id!==id);save();render();message("installMsg","Instalação removida.");
+}
+
+document.getElementById("technician").addEventListener("input",e=>{data.technician=e.target.value;save()});
+document.getElementById("matricula").addEventListener("input",e=>{data.matricula=e.target.value;save()});
+document.getElementById("saveGoal").onclick=()=>{
+  const v=+document.getElementById("goal").value;
+  if(!Number.isFinite(v)||v<0){message("goalMsg","Digite uma meta válida.",false);return}
+  data.goal=v;save();render();message("goalMsg","Meta salva: "+money(v));
+};
+document.getElementById("saveInstall").onclick=()=>{
+  const v=["sa","address","customer","contact"].map(id=>document.getElementById(id).value.trim());
+  if(v.some(z=>!z)){message("installMsg","Preencha todos os campos antes de salvar.",false);return}
+  data.installations.push({id:Date.now()+"_"+Math.random().toString(36).slice(2),date:iso(new Date()),sa:v[0],address:v[1],customer:v[2],contact:v[3]});
+  save();["sa","address","customer","contact"].forEach(id=>document.getElementById(id).value="");
+  render();message("installMsg","✅ Instalação salva e contabilizada como +1 hoje.");
+};
+document.getElementById("clearForm").onclick=()=>["sa","address","customer","contact"].forEach(id=>document.getElementById(id).value="");
+
+document.getElementById("backup").onclick=()=>{
+  const u=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:"application/json"}));
+  const a=document.createElement("a");a.href=u;a.download="backup_controle_producao_"+iso(new Date())+".json";a.click();
+  setTimeout(()=>URL.revokeObjectURL(u),1000);message("dataMsg","Backup gerado.");
+};
+document.getElementById("restore").onclick=()=>document.getElementById("file").click();
+document.getElementById("file").onchange=function(){
+  const f=this.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{try{const x=JSON.parse(r.result);if(!Array.isArray(x.installations))throw 0;data=Object.assign(blank(),x);save();render();message("dataMsg","Backup restaurado.")}catch(e){message("dataMsg","Backup inválido.",false)}};
+  r.readAsText(f);
+};
+document.getElementById("clearData").onclick=()=>{
+  if(!confirm("Apagar todos os dados deste dispositivo?"))return;
+  data=blank();try{localStorage.removeItem(KEY)}catch(e){}render();message("dataMsg","Dados apagados.");
+};
+
+document.getElementById("report").onclick=()=>{
+  const c=cyc(new Date()),a=list(c),gs=groups(a),total=gs.reduce((s,g)=>s+pay(g.qty),0);
+  const daily=gs.map(g=>`<tr><td>${g.date.split("-").reverse().join("/")}</td><td>${g.qty}</td><td>${money(pay(g.qty))}</td></tr>`).join("");
+  const st=Object.keys(data.statuses).sort().map(d=>`<tr><td>${d.split("-").reverse().join("/")}</td><td>${esc(data.statuses[d])}</td></tr>`).join("");
+  const rows=a.map(x=>`<tr><td>${x.date.split("-").reverse().join("/")}</td><td>${esc(x.sa)}</td><td>${esc(x.address)}</td><td>${esc(x.customer)}</td><td>${esc(x.contact)}</td></tr>`).join("");
+  const w=window.open("","_blank");
+  if(!w){message("dataMsg","Pop-up bloqueado.",false);return}
+  w.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Relatório de Produção</title>
+  <style>body{font-family:Arial;padding:24px;color:#111}table{border-collapse:collapse;width:100%;margin:12px 0;font-size:11px}th,td{border:1px solid #aaa;padding:6px;text-align:left}button{padding:10px}@media print{button{display:none}}</style></head>
+  <body><h1>Relatório de Produção</h1><p>Ciclo: ${iso(c.start).split("-").reverse().join("/")} a ${iso(c.end).split("-").reverse().join("/")}</p>
+  <p><b>Técnico:</b> ${esc(data.technician)} &nbsp; <b>Matrícula:</b> ${esc(data.matricula)}</p>
+  <p><b>Meta:</b> ${money(data.goal)} &nbsp; <b>Total:</b> ${a.length} instalações &nbsp; <b>Valor:</b> ${money(total)}</p>
+  <h2>Resumo diário</h2><table><tr><th>Data</th><th>Qtd.</th><th>Valor</th></tr>${daily}</table>
+  <h2>Faltas / Atestados / Folgas</h2><table><tr><th>Data</th><th>Situação</th></tr>${st||"<tr><td colspan=2>Nenhum registro.</td></tr>"}</table>
+  <h2>Instalações</h2><table><tr><th>Data</th><th>SA</th><th>Endereço</th><th>Cliente</th><th>Contato</th></tr>${rows||"<tr><td colspan=5>Nenhuma instalação.</td></tr>"}</table>
+  <button onclick="window.print()">Imprimir / Salvar em PDF</button></body></html>`);
+  w.document.close();
+};
+
+render();
+})();
+</script>
+<script>
+if("serviceWorker" in navigator){navigator.serviceWorker.register("./sw.js").catch(()=>{});}
+</script>
+</body>
+</html>
